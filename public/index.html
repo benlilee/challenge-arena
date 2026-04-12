@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>答题守擂挑战赛</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#0a0a15;color:#fff;min-height:100vh;padding:20px}
+.container{max-width:600px;margin:0 auto}
+.banner{background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid #00d4ff;border-radius:20px;padding:30px;text-align:center;margin:20px 0}
+.banner h2{color:#ffd700;font-size:1.5rem;margin-bottom:10px}
+.banner .name{font-size:2rem;color:#00d4ff;text-shadow:0 0 20px rgba(0,212,255,0.5)}
+.banner .stats{margin-top:15px;color:#888}
+.box{background:#1a1a2e;border-radius:20px;padding:30px;margin:20px 0}
+.box h3{color:#00d4ff;margin-bottom:20px;text-align:center}
+.input{width:100%;padding:15px;font-size:1.1rem;background:#0a0a15;border:2px solid #333;border-radius:10px;color:#fff;margin-bottom:15px;text-align:center}
+.input:focus{outline:none;border-color:#00d4ff}
+.btn{width:100%;padding:15px;font-size:1.1rem;background:linear-gradient(135deg,#00d4ff,#0099cc);border:none;border-radius:10px;color:#000;font-weight:bold;cursor:pointer}
+.btn:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(0,212,255,0.4)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-danger{background:linear-gradient(135deg,#ff4444,#cc0000);color:#fff;width:auto;padding:10px 20px;font-size:0.9rem;border-radius:8px}
+.question{display:none}
+.question.active{display:block}
+.progress{height:8px;background:#333;border-radius:4px;margin-bottom:20px;overflow:hidden}
+.progress-bar{height:100%;background:linear-gradient(90deg,#00d4ff,#00ff88);transition:width .5s}
+.option,.option:hover,.option:active,.option:focus,.option:visited{
+  padding:15px;background:#0a0a15;border:2px solid #333!important;
+  border-radius:10px;margin:10px 0;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;user-select:none;
+  touch-action:manipulation;
+  outline:none!important;box-shadow:none!important;
+}
+.option.selected{border-color:#00d4ff!important;background:rgba(0,212,255,0.2)}
+.option.correct{border-color:#00ff88!important;background:rgba(0,255,136,0.2)}
+.option.wrong{border-color:#ff4444!important;background:rgba(255,68,68,0.2)}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);justify-content:center;align-items:center;z-index:1000}
+.modal.active{display:flex}
+.modal-content{background:#1a1a2e;border-radius:20px;padding:40px;text-align:center;border:2px solid;max-width:90%}
+.modal-content.success{border-color:#00ff88}
+.modal-content.fail{border-color:#ff4444}
+.modal h2{font-size:2rem;margin:15px 0}
+.modal.success h2{color:#00ff88}
+.modal.fail h2{color:#ff4444}
+.admin{display:none}
+.admin.active{display:block}
+.admin-tabs{display:flex;gap:10px;margin:20px 0;flex-wrap:wrap}
+.tab{padding:10px 20px;background:#1a1a2e;border:1px solid #333;border-radius:10px;cursor:pointer;color:#888}
+.tab.active{background:#00d4ff;color:#000;border-color:#00d4ff}
+.admin-section{display:none}
+.admin-section.active{display:block}
+.admin-section textarea{width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:10px;color:#fff;min-height:60px;margin:5px 0;resize:vertical}
+.admin-section input{width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:10px;color:#fff;margin:5px 0}
+.admin-section select{width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:10px;color:#fff;margin:5px 0}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{padding:12px;text-align:left;border-bottom:1px solid #333}
+th{color:#00d4ff}
+.back{margin-top:30px;color:#888;text-align:center}
+.back a{color:#00d4ff;text-decoration:none}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#00ff88;color:#000;padding:15px 30px;border-radius:50px;font-weight:bold;opacity:0;transition:opacity .3s;z-index:1001}
+.toast.show{opacity:1}
+.loading{text-align:center;padding:40px;color:#888}
+.error{color:#ff4444;text-align:center;padding:20px}
+.status{font-size:0.9rem;color:#666;margin-top:10px}
+.leaderboard-item{padding:12px 14px;background:#0a0a15;border-radius:10px;margin:8px 0;border-left:3px solid #00d4ff}
+.leaderboard-item.top1{border-left-color:#ffd700}
+.leaderboard-item.top2{border-left-color:#c0c0c0}
+.leaderboard-item.top3{border-left-color:#cd7f32}
+.lb-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.lb-rank{font-size:1rem;font-weight:bold;color:#00d4ff;min-width:28px;text-align:center}
+.lb-rank.top1{color:#ffd700}
+.lb-rank.top2{color:#c0c0c0}
+.lb-rank.top3{color:#cd7f32}
+.lb-name{font-size:1.05rem;font-weight:bold;color:#fff;flex:1;word-break:break-all}
+.lb-score{font-size:1.1rem;font-weight:bold;color:#00d4ff;white-space:nowrap}
+.lb-stats{font-size:0.78rem;color:#888;padding-left:38px;letter-spacing:0.5px}
+.lb-stats span{margin-right:10px}
+.lb-times{margin-top:5px;padding:6px 8px;background:#12121f;border-radius:6px;font-size:0.72rem;color:#aaa;line-height:1.6;padding-left:38px}
+.lb-times .ok{color:#00ff88}
+.lb-times .no{color:#ff6666}
+@media(max-width:400px){
+.lb-stats span{margin-right:6px}
+.lb-name{font-size:0.95rem}
+}
+.login-box{max-width:400px;margin:100px auto;background:#1a1a2e;border:2px solid #00d4ff;border-radius:20px;padding:40px;text-align:center}
+.login-box h2{color:#00d4ff;margin-bottom:30px}
+.login-box input{width:100%;padding:15px;background:#0a0a15;border:1px solid #333;border-radius:10px;color:#fff;margin-bottom:15px;font-size:1.1rem}
+.login-box .btn{margin-top:20px}
+</style>
+</head>
+<body>
+<div class="container" id="mainPage">
+<div class="banner">
+<h2>👑 当前擂主</h2>
+<div class="name" id="championName">加载中...</div>
+<div class="stats">已连续守住 <span id="defenseCount">0</span> 次 | 总挑战 <span id="totalCount">0</span> 次</div>
+</div>
+
+<div class="box" id="startBox">
+<h3>🎯 开始挑战</h3>
+<input type="text" class="input" id="playerName" placeholder="输入你的名字" maxlength="20">
+<button class="btn" id="startBtn" onclick="startGame()">开始挑战</button>
+</div>
+
+<div class="box question" id="questionBox">
+<h3>第 <span id="qNum">1</span> / <span id="totalQ">3</span> 题</h3>
+<div class="progress"><div class="progress-bar" id="progressBar" style="width:33%"></div></div>
+<div class="name" id="qText" style="font-size:1.2rem;margin:20px 0;text-align:center"></div>
+<div id="optionsBox"></div>
+</div>
+
+<div class="back" style="margin-top:30px;text-align:center">
+<a href="#" onclick="showLeaderboard(event)">📊 排行榜</a> | 
+<a href="#" onclick="showHallOfFame(event)">👑 名人堂</a> | 
+<a href="#" onclick="showAdmin(event)">⚙️ 后台</a>
+</div>
+</div>
+
+<!-- 排行榜页面 -->
+<div class="admin" id="leaderboardPage">
+<h2 style="text-align:center;color:#00d4ff;margin-bottom:20px">📊 挑战者积分排行榜</h2>
+<div id="leaderboardList"></div>
+<div class="back"><a href="#" onclick="showMain(event)">← 返回前台</a></div>
+</div>
+
+<!-- 名人堂页面 -->
+<div class="admin" id="hallOfFamePage">
+<h2 style="text-align:center;color:#ffd700;margin-bottom:20px">👑 历届擂主名人堂</h2>
+<div id="hallOfFameList"></div>
+<div class="back"><a href="#" onclick="showMain(event)">← 返回前台</a></div>
+</div>
+
+<!-- 后台登录 -->
+<div class="login-box" id="loginBox" style="display:none">
+<h2>🔐 后台管理</h2>
+<input type="password" id="adminPassword" placeholder="输入管理员密码" onkeypress="if(event.key==='Enter')adminLogin()">
+<button class="btn" onclick="adminLogin()">登录</button>
+<div class="back"><a href="#" onclick="showMain(event)">← 返回</a></div>
+</div>
+
+<!-- 后台管理 -->
+<div class="admin" id="adminPage">
+<h2 style="text-align:center;color:#00d4ff;margin-bottom:20px">⚔️ 后台管理</h2>
+<div class="admin-tabs">
+<div class="tab active" onclick="switchTab('setup')">擂主设置</div>
+<div class="tab" onclick="switchTab('questions')">出题</div>
+<div class="tab" onclick="switchTab('records')">记录</div>
+</div>
+<div style="padding:12px 15px;margin:10px 0;background:rgba(255,68,68,0.08);border:1px dashed #ff4444;border-radius:10px">
+<button class="btn btn-danger" onclick="clearLeaderboard()">🗑️ 清除排行榜记录</button>
+<span style="font-size:0.75rem;color:#666;margin-left:8px;vertical-align:middle">此操作不可恢复</span>
+</div>
+
+<div class="admin-section active" id="setupSection">
+<h3>设置擂主</h3>
+<input type="text" id="championInput" placeholder="擂主名字">
+<button class="btn" onclick="saveChampion()">保存</button>
+</div>
+
+<div class="admin-section" id="questionsSection">
+<h3>出题 (3题)</h3>
+<div id="questionsForm"></div>
+<button class="btn" onclick="saveQuestions()">保存题目</button>
+</div>
+
+<div class="admin-section" id="recordsSection">
+<div id="recordsList"></div>
+</div>
+
+<div class="back"><a href="#" onclick="showMain(event)">← 返回前台</a></div>
+</div>
+
+<div class="modal" id="resultModal">
+<div class="modal-content" id="modalContent">
+<div id="modalIcon" style="font-size:4rem"></div>
+<h2 id="modalTitle"></h2>
+<p id="modalMsg"></p>
+<button class="btn" onclick="closeModal()">再来一次</button>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var API = '';
+var adminToken = null;
+var game={name:'',q:0,ans:[],answers:[],questionCount:3,startTime:0};
+
+function loadGame(){
+  fetch(API+'/api/game')
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('championName').textContent=d.champion.name;
+      document.getElementById('defenseCount').textContent=d.champion.def;
+      document.getElementById('totalCount').textContent=d.totalChallenges||0;
+      document.getElementById('championInput').value=d.champion.name;
+      window.serverQuestions=d.questions;
+      game.questionCount=d.questionCount||d.questions.length;
+      document.getElementById('totalQ').textContent=game.questionCount;
+    })
+    .catch(e=>document.getElementById('championName').textContent='连接失败');
+}
+
+function startGame(){
+  var n=document.getElementById('playerName').value.trim();
+  if(!n){showToast('请输入名字');return;}
+  game={name:n,q:0,ans:[],answers:[],questionCount:game.questionCount||3,startTime:Date.now()};
+  document.getElementById('startBox').style.display='none';
+  document.getElementById('questionBox').classList.add('active');
+  showQuestion();
+}
+
+function showQuestion(){
+  var q=window.serverQuestions[game.q];
+  document.getElementById('qNum').textContent=game.q+1;
+  document.getElementById('progressBar').style.width=((game.q+1)/game.questionCount*100)+'%';
+  document.getElementById('qText').textContent=q.t;
+  var box=document.getElementById('optionsBox');
+  box.innerHTML='';
+  var letters=['a','b','c','d'];
+  for(var i=0;i<letters.length;i++){
+    var k=letters[i];
+    var op=document.createElement('div');
+    op.className='option';
+    op.textContent=k.toUpperCase()+'. '+q.o[k];
+    op.onclick=(function(key){return function(){selectAns(key);}})(k);
+    box.appendChild(op);
+  }
+}
+
+function selectAns(a){
+  var q=window.serverQuestions[game.q];
+  var opts=document.querySelectorAll('.option');
+  var isCorrect=a===q.a;
+  game.ans.push(isCorrect);
+  game.answers.push({q:q.t,selected:a,correct:a===q.a});
+  
+  for(var i=0;i<opts.length;i++){
+    var op=opts[i];
+    var k=op.textContent.charAt(0).toLowerCase();
+    op.onclick=null;
+    if(k===q.a){op.classList.add('correct');}
+    else if(k===a){op.classList.add('wrong');}
+  }
+  
+  setTimeout(function(){
+    // 替换整个容器，旧DOM彻底消失，防止蓝色残留
+    var oldBox=document.getElementById('optionsBox');
+    var newBox=document.createElement('div');
+    newBox.id='optionsBox';
+    oldBox.parentNode.replaceChild(newBox,oldBox);
+    
+    game.q++;
+    if(game.q>=game.questionCount){endGame();}else{showQuestion();}
+  },1000);
+}
+
+function endGame(){
+  var all=true;
+  for(var i=0;i<game.ans.length;i++){if(!game.ans[i]){all=false;break;}}
+  var ok=game.ans.filter(v=>v).length;
+  var timeCost=Math.round((Date.now()-game.startTime)/1000); // 秒
+  
+  fetch(API+'/api/challenge',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      challenger:game.name,
+      success:all,
+      correct:ok,
+      answers:game.answers,
+      timeCost:timeCost,
+      timestamp:new Date().toISOString()
+    })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.isNewChampion){
+      showResult(true,'🏆 挑战成功!','你击败了 '+d.champion.name+'，成为新擂主!');
+    }else if(d.success){
+      showResult(true,'🎉 挑战成功!',d.message);
+    }else{
+      showResult(false,'💀 挑战失败',d.message);
+    }
+    loadGame();
+  })
+  .catch(e=>showToast('提交失败'));
+}
+
+function showResult(success,ti,msg){
+  document.getElementById('modalIcon').textContent=success?'🏆':'💀';
+  document.getElementById('modalTitle').textContent=ti;
+  document.getElementById('modalMsg').textContent=msg;
+  var c=document.getElementById('modalContent');
+  c.className='modal-content '+(success?'success':'fail');
+  document.getElementById('resultModal').classList.add('active');
+}
+
+function closeModal(){
+  document.getElementById('resultModal').classList.remove('active');
+  document.getElementById('questionBox').classList.remove('active');
+  document.getElementById('startBox').style.display='block';
+  document.getElementById('playerName').value='';
+  loadGame();
+}
+
+// 排行榜
+function showLeaderboard(e){
+  e.preventDefault();
+  document.getElementById('mainPage').style.display='none';
+  document.getElementById('leaderboardPage').classList.add('active');
+  loadLeaderboard();
+}
+
+function loadLeaderboard(){
+  fetch(API+'/api/leaderboard')
+    .then(r=>r.json())
+    .then(data=>{
+      var html='';
+      for(var i=0;i<data.length;i++){
+        var item=data[i];
+        var rankClass='';
+        if(i===0)rankClass='top1';
+        else if(i===1)rankClass='top2';
+        else if(i===2)rankClass='top3';
+
+        // 最近两次答题时间
+        var timesHtml='';
+        if(item.lastTimes && item.lastTimes.length>0){
+          timesHtml='<span class="ok">🏆</span> '+item.lastTimes[0].date+' 用时 <span class="ok">'+item.lastTimes[0].time+'秒</span>';
+          if(item.lastTimes.length>1){
+            timesHtml+=' &nbsp; <span class="no">❌</span> '+item.lastTimes[1].date+' 用时 <span class="no">'+item.lastTimes[1].time+'秒</span>';
+          }
+        }
+
+        html+='<div class="leaderboard-item '+rankClass+'">';
+        html+='<div class="lb-header">';
+        html+='<span class="lb-rank '+rankClass+'">#'+(i+1)+'</span>';
+        html+='<span class="lb-name">'+item.name+'</span>';
+        html+='<span class="lb-score">'+item.score+'分</span>';
+        html+='</div>';
+        html+='<div class="lb-stats">';
+        html+='<span>🏆 '+item.wins+'胜</span>';
+        html+='<span>📊 '+item.attempts+'场</span>';
+        html+='<span>📈 '+(item.attempts>0?Math.round(item.wins/item.attempts*100):0)+'%胜率</span>';
+        html+='</div>';
+        if(timesHtml) html+='<div class="lb-times">'+timesHtml.replace(/style="[^"]*"/g,'')+'</div>';
+        html+='</div>';
+      }
+      if(data.length===0)html='<div class="error">暂无数据</div>';
+      document.getElementById('leaderboardList').innerHTML=html;
+    });
+}
+
+// 名人堂
+function showHallOfFame(e){
+  e.preventDefault();
+  document.getElementById('mainPage').style.display='none';
+  document.getElementById('hallOfFamePage').classList.add('active');
+  loadHallOfFame();
+}
+
+function loadHallOfFame(){
+  fetch(API+'/api/hall-of-fame')
+    .then(r=>r.json())
+    .then(data=>{
+      var html='';
+      for(var i=0;i<data.length;i++){
+        var item=data[i];
+        html+='<div class="leaderboard-item">';
+        html+='<div class="lb-header">';
+        html+='<span class="lb-rank">#'+(i+1)+'</span>';
+        html+='<span class="lb-name">'+item.name+'</span>';
+        html+='</div>';
+        html+='<div class="lb-stats">';
+        html+='<span>🛡️ 守擂 '+item.totalDef+' 次</span>';
+        html+='<span>👑 上位 '+item.reigns+' 次</span>';
+        html+='</div>';
+        html+='</div>';
+      }
+      if(data.length===0)html='<div class="error">暂无历届擂主</div>';
+      document.getElementById('hallOfFameList').innerHTML=html;
+    });
+}
+
+// 后台管理
+function showAdmin(e){
+  e.preventDefault();
+  document.getElementById('mainPage').style.display='none';
+  document.getElementById('loginBox').style.display='block';
+}
+
+function adminLogin(){
+  var pwd=document.getElementById('adminPassword').value;
+  if(!pwd){showToast('请输入密码');return;}
+  
+  fetch(API+'/api/admin/login',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({password:pwd})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.success){
+      adminToken=d.token;
+      document.getElementById('loginBox').style.display='none';
+      document.getElementById('adminPage').classList.add('active');
+      loadGame();
+      showToast('✅ 登录成功');
+    }else{
+      showToast('❌ 密码错误');
+    }
+  })
+  .catch(e=>showToast('登录失败'));
+}
+
+function showMain(e){
+  e.preventDefault();
+  document.getElementById('adminPage').classList.remove('active');
+  document.getElementById('leaderboardPage').classList.remove('active');
+  document.getElementById('hallOfFamePage').classList.remove('active');
+  document.getElementById('loginBox').style.display='none';
+  document.getElementById('mainPage').style.display='block';
+  adminToken=null;
+}
+
+function clearLeaderboard(){
+  if(!confirm('确定要清除所有排行榜记录吗？此操作不可恢复！'))return;
+  fetch(API+'/api/admin/leaderboard/clear',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-admin-token':adminToken}
+  }).then(r=>r.json()).then(d=>{
+    if(d.success)showToast('排行榜已清空');
+    else showToast(d.error||'操作失败');
+  }).catch(()=>showToast('网络错误'));
+}
+
+function switchTab(t){
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++)tabs[i].classList.remove('active');
+  var sections=document.querySelectorAll('.admin-section');
+  for(var i=0;i<sections.length;i++)sections[i].classList.remove('active');
+  event.target.classList.add('active');
+  document.getElementById(t+'Section').classList.add('active');
+  if(t==='setup')loadGame();
+  if(t==='questions')renderQuestionsForm();
+  if(t==='records')loadRecords();
+}
+
+function saveChampion(){
+  var n=document.getElementById('championInput').value.trim();
+  if(!n){showToast('请输入名字');return;}
+  fetch(API+'/api/admin/champion',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-admin-token':adminToken},
+    body:JSON.stringify({name:n})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.success){showToast('✅ 已保存');loadGame();}
+    else showToast('❌ '+d.error);
+  })
+  .catch(e=>showToast('保存失败'));
+}
+
+function renderQuestionsForm(){
+  var perRound=game.questionCount||3;
+  var html='<div style="margin-bottom:15px;padding:15px;background:#0a0a15;border-radius:10px;border:1px solid #333;">';
+  html+='<div style="margin-bottom:10px;color:#ffd700;font-weight:bold">⚙️ 出题设置</div>';
+  html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">';
+  html+='<label style="color:#888">每轮题目数量:</label>';
+  html+='<div id="qCounter" style="display:flex;align-items:center;gap:0">';
+  html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:5px 0 0 5px;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(0)">−</button>';
+  html+='<span id="qCountVal" style="width:44px;height:36px;line-height:36px;text-align:center;background:#1a1a2e;border-top:1px solid #00d4ff;border-bottom:1px solid #00d4ff;color:#00d4ff;font-size:1.1rem;font-weight:bold">'+perRound+'</span>';
+  html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:0 5px 5px 0;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(1)">+</button>';
+  html+='</div>';
+  html+='<span style="color:#666">道题</span>';
+  html+='</div>';
+  html+='</div>';
+  
+  html+='<div id="questionsFields">';
+  for(var i=1;i<=perRound;i++){
+    html+='<div style="background:#12121a;padding:15px;margin:10px 0;border-radius:10px;border:1px solid #333;">';
+    html+='<h4 style="color:#00d4ff;margin-bottom:10px">第 '+i+' 题</h4>';
+    html+='<textarea id="qt'+i+'" placeholder="请输入题目内容..." style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;min-height:50px;margin-bottom:10px"></textarea>';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    html+='<input type="text" id="qa'+i+'" placeholder="A选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qb'+i+'" placeholder="B选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qc'+i+'" placeholder="C选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qd'+i+'" placeholder="D选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='</div>';
+    html+='<select id="qans'+i+'" style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;margin-top:10px"><option value="">▼ 选择正确答案</option><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select>';
+    html+='</div>';
+  }
+  html+='</div>';
+  
+  document.getElementById('questionsForm').innerHTML=html;
+  
+  var qs=window.serverQuestions||[];
+  for(var i=0;i<qs.length&&i<perRound;i++){
+    var q=qs[i];
+    document.getElementById('qt'+(i+1)).value=q.t||'';
+    document.getElementById('qa'+(i+1)).value=q.o?q.o.a:'';
+    document.getElementById('qb'+(i+1)).value=q.o?q.o.b:'';
+    document.getElementById('qc'+(i+1)).value=q.o?q.o.c:'';
+    document.getElementById('qd'+(i+1)).value=q.o?q.o.d:'';
+    document.getElementById('qans'+(i+1)).value=q.a||'';
+  }
+}
+
+function chgQ(delta){
+  var cur=parseInt(document.getElementById('qCountVal').textContent)||3;
+  var n=Math.max(1,Math.min(99,cur+delta));
+  game.questionCount=n;
+  document.getElementById('qCountVal').textContent=n;
+  renderQuestionsForm();
+}
+
+function updateQuestionFields(){
+  var n=parseInt(document.getElementById('qCountVal').textContent)||3;
+  game.questionCount=n;
+  renderQuestionsForm();
+}
+
+function saveQuestions(){
+  var perRound=parseInt(document.getElementById('qCountVal').textContent)||3;
+  var qs=[];
+  for(var i=1;i<=perRound;i++){
+    var t=document.getElementById('qt'+i).value.trim();
+    var a=document.getElementById('qans'+i).value;
+    if(!t){showToast('请输入第'+i+'题题目');return;}
+    if(!a){showToast('请选择第'+i+'题正确答案');return;}
+    qs.push({t:t,o:{a:document.getElementById('qa'+i).value.trim(),b:document.getElementById('qb'+i).value.trim(),c:document.getElementById('qc'+i).value.trim(),d:document.getElementById('qd'+i).value.trim()},a:a});
+  }
+  fetch(API+'/api/admin/questions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-admin-token':adminToken},
+    body:JSON.stringify({questions:qs,questionsPerRound:perRound})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.success){
+      showToast('✅ 已保存！每轮 '+d.questionsPerRound+' 题');
+      window.serverQuestions=qs;
+      game.questionCount=d.questionsPerRound;
+    }else showToast('❌ '+d.error);
+  })
+  .catch(e=>showToast('❌ 保存失败'));
+}
+
+function loadRecords(){
+  fetch(API+'/api/records')
+    .then(r=>r.json())
+    .then(recs=>{
+      var html='<table><tr><th>挑战者</th><th>擂主</th><th>结果</th><th>时间</th></tr>';
+      for(var i=0;i<recs.length;i++){
+        var r=recs[i];
+        var s=r.success?'<span style="color:#00ff88">成功</span>':'<span style="color:#ff4444">失败</span>';
+        html+='<tr><td>'+r.challenger+'</td><td>'+r.champion+'</td><td>'+s+'</td><td>'+r.submitTime+'</td></tr>';
+      }
+      if(recs.length===0)html+='<tr><td colspan="4" style="text-align:center;color:#888">暂无记录</td></tr>';
+      html+='</table>';
+      document.getElementById('recordsList').innerHTML=html;
+    })
+    .catch(e=>document.getElementById('recordsList').innerHTML='<div class="error">加载失败</div>');
+}
+
+function showToast(m){
+  var t=document.getElementById('toast');
+  t.textContent=m;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+loadGame();
+</script>
+</body>
+</html>

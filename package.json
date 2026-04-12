@@ -1,0 +1,14 @@
+{
+  "name": "challenge-server",
+  "version": "1.0.0",
+  "description": "答题守擂挑战赛后台服务",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
