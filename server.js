@@ -6,7 +6,8 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = process.env.DATA_DIR || '/tmp';
+// Railway 持久化：优先用环境变量（需在 Railway 面板挂载持久磁盘），否则用项目目录
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin888';
 const RESET_DAY = 2; // 每周二清空排行榜（0=周日，1=周一，2=周二...）
@@ -196,7 +197,9 @@ app.post('/api/challenge', (req, res) => {
     const data = readData();
 
     // 限访客检查（按名字）
-    if (!checkVisitorLimit(data, challenger)) {
+    const allowed = checkVisitorLimit(data, challenger);
+    if (!allowed) {
+        saveData(data); // 计数变更必须立即落盘
         return res.status(403).json({
             success: false,
             message: '⛔ 本周挑战次数已达上限（3次），请下周再来！'
