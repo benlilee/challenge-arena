@@ -242,7 +242,8 @@ function loadGame(){
       document.getElementById('totalCount').textContent=d.totalChallenges||0;
       document.getElementById('championInput').value=d.champion.name;
       window.serverQuestions=d.questions;
-      game.questionCount=d.questionCount||d.questions.length;
+      // 实际题目数以后端返回的 questions 数组长度为准
+      game.questionCount=d.questions.length;
       document.getElementById('totalQ').textContent=game.questionCount;
     })
     .catch(e=>document.getElementById('championName').textContent='连接失败');
@@ -252,11 +253,28 @@ function loadGame(){
 function startGame(){
   var n=document.getElementById('playerName').value.trim();
   if(!n){showToast('请输入名字');return;}
-  game={name:n,q:0,ans:[],answers:[],questionCount:game.questionCount||3,startTime:Date.now()};
-  document.getElementById('startBox').style.display='none';
-  document.getElementById('questionBox').classList.add('active');
-  document.getElementById('limitMsg').classList.remove('active');
-  showQuestion();
+  if(!window.serverQuestions||window.serverQuestions.length===0){showToast('题目加载中，请稍候');return;}
+  // 每次开始时重新从服务器拉取随机题目，确保题目顺序不同
+  fetch(API+'/api/game')
+    .then(r=>r.json())
+    .then(d=>{
+      window.serverQuestions=d.questions;
+      var qCount=d.questions.length;
+      game={name:n,q:0,ans:[],answers:[],questionCount:qCount,startTime:Date.now()};
+      document.getElementById('totalQ').textContent=qCount;
+      document.getElementById('startBox').style.display='none';
+      document.getElementById('questionBox').classList.add('active');
+      document.getElementById('limitMsg').classList.remove('active');
+      showQuestion();
+    })
+    .catch(function(){
+      // 如果拉取失败，用已有题目
+      game={name:n,q:0,ans:[],answers:[],questionCount:window.serverQuestions.length,startTime:Date.now()};
+      document.getElementById('startBox').style.display='none';
+      document.getElementById('questionBox').classList.add('active');
+      document.getElementById('limitMsg').classList.remove('active');
+      showQuestion();
+    });
 }
 
 // 显示题目
