@@ -256,6 +256,12 @@ app.get('/api/admin/data', (req, res) => {
     res.json(readData());
 });
 
+app.get('/api/admin/questions/full', (req, res) => {
+    if (!verifyToken(req)) return res.status(401).json({ error: '未授权' });
+    const data = readData();
+    res.json({ questions: data.questions, questionCount: data.questionsPerRound });
+});
+
 app.post('/api/admin/champion', (req, res) => {
     if (!verifyToken(req)) return res.status(401).json({ error: '未授权' });
     const data = readData();

@@ -554,7 +554,19 @@ function switchTab(t){
   event.target.classList.add('active');
   document.getElementById(t+'Section').classList.add('active');
   if(t==='setup')loadGame();
-  if(t==='questions')renderQuestionsForm();
+  if(t==='questions'){
+    // 管理员获取完整题库
+    if(adminToken){
+      fetch(API+'/api/admin/questions/full',{headers:{'x-admin-token':adminToken}})
+        .then(r=>r.json())
+        .then(d=>{
+          window.serverQuestions=d.questions||[];
+          renderQuestionsForm();
+        });
+    }else{
+      renderQuestionsForm();
+    }
+  }
   if(t==='records')loadRecords();
 }
 
