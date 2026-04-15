@@ -71,22 +71,22 @@ function checkWeeklyReset(data) {
     }
 }
 
-// ===== 限访客：一周内不超过3次 =====
-function checkVisitorLimit(data, ip) {
+// ===== 限访客：同一名字一周内不超过3次 =====
+function checkVisitorLimit(data, name) {
     const now = Date.now();
     // 周起始（周一 00:00）
     const weekStart = now - ((now / 86400000 | 0) % 7) * 86400000 - (new Date().getHours() * 3600 + new Date().getMinutes() * 60 + new Date().getSeconds()) * 1000;
 
-    if (!data.visitorLog[ip] || data.visitorLog[ip].weekStart < weekStart) {
+    if (!data.visitorLog[name] || data.visitorLog[name].weekStart < weekStart) {
         // 新的一周，重置计数
-        data.visitorLog[ip] = { count: 0, weekStart: weekStart };
+        data.visitorLog[name] = { count: 0, weekStart: weekStart };
     }
 
-    if (data.visitorLog[ip].count >= 3) {
+    if (data.visitorLog[name].count >= 3) {
         return false; // 已被限制
     }
 
-    data.visitorLog[ip].count++;
+    data.visitorLog[name].count++;
     return true; // 可以访问
 }
 
@@ -195,12 +195,11 @@ app.post('/api/challenge', (req, res) => {
     const { challenger, success, correct, timeCost } = req.body;
     const data = readData();
 
-    // 限访客检查
-    const ip = getClientIp(req);
-    if (!checkVisitorLimit(data, ip)) {
+    // 限访客检查（按名字）
+    if (!checkVisitorLimit(data, challenger)) {
         return res.status(403).json({
             success: false,
-            message: '⛔ 本周访问次数已达上限（3次），请下周再来！'
+            message: '⛔ 本周挑战次数已达上限（3次），请下周再来！'
         });
     }
 
