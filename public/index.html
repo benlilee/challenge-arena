@@ -162,6 +162,7 @@ th{color:#00d4ff}
 
 <!-- 后台管理 -->
 <div class="admin" id="adminPage">
+<div class="back" style="margin-top:0;margin-bottom:15px"><a href="#" onclick="showMain(event)">← 返回前台</a></div>
 <h2 style="text-align:center;color:#00d4ff;margin-bottom:20px">⚔️ 后台管理</h2>
 <div class="admin-tabs">
 <div class="tab active" onclick="switchTab('setup')">擂主设置</div>
@@ -191,6 +192,21 @@ th{color:#00d4ff}
 </div>
 <div id="questionsForm"></div>
 <button class="btn" onclick="saveQuestions()">保存题目</button>
+
+<div style="margin-top:20px;padding:15px;background:#0a0a15;border-radius:10px;border:1px solid #333;">
+<h4 style="color:#ffd700;margin-bottom:10px">📦 批量导入题库</h4>
+<div style="margin-bottom:10px;padding:10px;background:#12121a;border-radius:8px;font-size:0.8rem;color:#888;line-height:1.8">
+  📌 <b>支持格式（每题用空行分隔）</b><br>
+  <b>格式1：</b>题目↵A.选项↵B.选项↵C.选项↵D.选项↵答案:A<br>
+  <b>格式2：</b>1.题目↵A 选项↵B 选项↵C 选项↵D 选项↵正确答案A<br>
+  <b>格式3：</b>题目___A___B___C___D___A（下划线分隔）
+</div>
+<textarea id="batchInput" placeholder="在此粘贴题目，每题用空行分隔...&#10;&#10;示例：&#10;地球上最大的洋是？&#10;A.太平洋&#10;B.大西洋&#10;C.印度洋&#10;D.北冰洋&#10;答案：A&#10;&#10;光年是什么单位？&#10;A.时间&#10;B.距离&#10;C.速度&#10;D.质量&#10;答案：B" style="width:100%;padding:12px;background:#12121a;border:1px solid #333;border-radius:8px;color:#fff;min-height:200px;font-size:0.9rem;margin-bottom:10px;box-sizing:border-box"></textarea>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<button class="btn" onclick="batchImport()">📥 解析并预览</button>
+<div id="batchPreview" style="flex:1;min-width:200px"></div>
+</div>
+</div>
 </div>
 
 <div class="admin-section" id="recordsSection">
@@ -544,11 +560,11 @@ function renderQuestionsForm(){
   var perRound=game.questionCount||3;
   var qs=window.serverQuestions||[];
   var html='<div style="margin-bottom:15px;padding:15px;background:#0a0a15;border-radius:10px;border:1px solid #333;">';
-  html+='<div style="margin-bottom:10px;color:#ffd700;font-weight:bold">⚙️ 题库管理（建议 50 道题）</div>';
+  html+='<div style="margin-bottom:10px;color:#ffd700;font-weight:bold">⚙️ 题库管理（共 '+qs.length+' 道题）</div>';
   html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">';
   html+='<label style="color:#888">每轮抽取:</label>';
   html+='<div style="display:flex;align-items:center;gap:0">';
-  html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:5px 0 0 5px;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(0)">−</button>';
+  html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:5px 0 0 5px;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(-1)">−</button>';
   html+='<span id="qCountVal" style="width:44px;height:36px;line-height:36px;text-align:center;background:#1a1a2e;border-top:1px solid #00d4ff;border-bottom:1px solid #00d4ff;color:#00d4ff;font-size:1.1rem;font-weight:bold">'+perRound+'</span>';
   html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:0 5px 5px 0;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(1)">+</button>';
   html+='</div>';
@@ -556,11 +572,18 @@ function renderQuestionsForm(){
   html+='</div>';
   html+='</div>';
 
+  html+='<div style="margin:10px 0">';
+  html+='<button class="btn" style="width:auto;padding:8px 16px;font-size:0.85rem;margin-right:10px" onclick="addOneQ()">➕ 添加新题</button>';
+  html+='</div>';
+
   html+='<div id="questionsFields">';
-  for(var i=1;i<=perRound;i++){
+  for(var i=1;i<=qs.length;i++){
     var q=qs[i-1]||{};
-    html+='<div style="background:#12121a;padding:15px;margin:10px 0;border-radius:10px;border:1px solid #333;">';
-    html+='<h4 style="color:#00d4ff;margin-bottom:10px">第 '+i+' 题</h4>';
+    html+='<div id="qblock_'+i+'" style="background:#12121a;padding:15px;margin:10px 0;border-radius:10px;border:1px solid #333;">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html+='<h4 style="color:#00d4ff">第 '+i+' 题</h4>';
+    html+='<button style="background:none;border:1px solid #ff4444;color:#ff4444;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:0.8rem" onclick="delOneQ('+i+')">🗑️ 删除此题</button>';
+    html+='</div>';
     html+='<textarea id="qt'+i+'" placeholder="请输入题目内容..." style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;min-height:50px;margin-bottom:10px">'+escapeHtml(q.t||'')+'</textarea>';
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
     html+='<input type="text" id="qa'+i+'" placeholder="A选项" value="'+escapeHtml(q.o?q.o.a:'')+'" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
@@ -575,6 +598,122 @@ function renderQuestionsForm(){
   document.getElementById('questionsForm').innerHTML=html;
 }
 
+function addOneQ(){
+  window.serverQuestions.push({t:'',o:{a:'',b:'',c:'',d:''},a:''});
+  renderQuestionsForm();
+}
+
+function delOneQ(idx){
+  if(!confirm('确定删除第 '+idx+' 题吗？'))return;
+  window.serverQuestions.splice(idx-1,1);
+  renderQuestionsForm();
+}
+
+function batchImport(){
+  var raw=document.getElementById('batchInput').value.trim();
+  if(!raw){showToast('请先粘贴题目内容');return;}
+  var blocks=raw.split(/\n\s*\n/);
+  var parsed=[];
+  var errors=[];
+  blocks.forEach(function(block){
+    var q=parseOneQuestion(block.trim());
+    if(q)parsed.push(q);
+    else if(block.trim())errors.push(block.trim().substring(0,30)+'...');
+  });
+  var preview=document.getElementById('batchPreview');
+  if(parsed.length===0){
+    preview.innerHTML='<span style="color:#ff4444">❌ 未解析到有效题目，请检查格式</span>';
+    if(errors.length)preview.innerHTML+='<br><span style="color:#666;font-size:0.8rem">无法识别 '+errors.length+' 段内容</span>';
+    return;
+  }
+  var h='<div style="color:#00d4ff;font-weight:bold">✅ 成功解析 '+parsed.length+' 道题';
+  if(errors.length)h+='<span style="color:#ff4444;font-weight:normal"> | ⚠️ '+errors.length+' 段未识别</span>';
+  h+='</div>';
+  h+='<div style="margin-top:8px;display:flex;gap:8px">';
+  h+='<button class="btn" style="background:#00aa44;font-size:0.85rem;padding:6px 14px" onclick="confirmBatch()">✅ 追加到题库</button>';
+  h+='<button class="btn" style="background:#cc6600;font-size:0.85rem;padding:6px 14px" onclick="replaceBatch()">🔄 替换整个题库</button>';
+  h+='</div>';
+  preview.innerHTML=h;
+  window._batchParsed=parsed;
+}
+
+function confirmBatch(){
+  if(!window._batchParsed||!window._batchParsed.length)return;
+  var n=window._batchParsed.length;
+  window.serverQuestions=window.serverQuestions.concat(window._batchParsed);
+  renderQuestionsForm();
+  document.getElementById('batchPreview').innerHTML='<span style="color:#00aa44">✅ 已追加 '+n+' 题，题库共 '+window.serverQuestions.length+' 题</span>';
+  window._batchParsed=null;
+}
+
+function replaceBatch(){
+  if(!window._batchParsed||!window._batchParsed.length)return;
+  var old=window.serverQuestions.length;
+  window.serverQuestions=window._batchParsed.slice();
+  renderQuestionsForm();
+  document.getElementById('batchPreview').innerHTML='<span style="color:#cc6600">🔄 已替换，'+old+' 题 → '+window.serverQuestions.length+' 题</span>';
+  window._batchParsed=null;
+}
+
+function parseOneQuestion(block){
+  var lines=block.split('\n').map(function(l){return l.trim();}).filter(function(l){return l;});
+  if(lines.length<3)return null;
+  var question='',opts={a:'',b:'',c:'',d:''},answer='';
+  // Try underline-separated format: 题目_A选项_B选项_C选项_D选项_答案
+  if(lines.length===1 && lines[0].indexOf('_')>0){
+    var p=lines[0].split('_');
+    if(p.length>=5){
+      question=p[0].trim();
+      opts.a=p[1].trim();
+      opts.b=p[2].trim();
+      opts.c=p[3].trim();
+      opts.d=p[4].trim();
+      var ansMatch=p[5]?p[5].trim().match(/[A-Da-d]/):null;
+      if(ansMatch)answer=ansMatch[0].toLowerCase();
+      else{
+        for(var k=5;k<p.length;k++){var m=p[k].trim().match(/[A-Da-d]/);if(m){answer=m[0].toLowerCase();break;}}
+      }
+      if(question&&opts.a&&opts.b&&opts.c&&opts.d&&answer)return{t:question,o:opts,a:answer};
+    }
+    return null;
+  }
+  // Multi-line format
+  var i=0;
+  // Extract question (first non-option line)
+  while(i<lines.length&&!/^[A-Da-d][.、．:：\s]/.test(lines[i])){
+    question+=(question?' ':'')+lines[i].replace(/^\d+[.、．:：]\s*/,'');
+    i++;
+  }
+  if(!question)return null;
+  // Extract options and answer
+  var optLetters=['a','b','c','d'];
+  var optIdx=0;
+  while(i<lines.length){
+    var line=lines[i];
+    var ansMatch=line.match(/(?:答案|正确答案|answer)[：:\s]*([A-Da-d])/i);
+    if(ansMatch){answer=ansMatch[1].toLowerCase();i++;continue;}
+    var optMatch=line.match(/^[A-Da-d][.、．:：)\s]+(.+)/);
+    if(optMatch&&optIdx<4){
+      opts[optLetters[optIdx]]=optMatch[1].trim();
+      optIdx++;i++;continue;
+    }
+    // Fallback: line starting with A-D followed by space
+    var fbMatch=line.match(/^([A-Da-d])\s+(.+)/);
+    if(fbMatch){
+      var li=optLetters.indexOf(fbMatch[1].toLowerCase());
+      if(li>=0&&li<4){opts[li]=fbMatch[2].trim();optIdx=Math.max(optIdx,li+1);}
+    }
+    i++;
+  }
+  if(!answer){
+    // Check if question line ends with answer hint
+    var qAns=question.match(/[（(]\s*([A-Da-d])\s*[）)]/);
+    if(qAns){answer=qAns[1].toLowerCase();question=question.replace(/[（(]\s*[A-Da-d]\s*[）)]/,'').trim();}
+  }
+  if(question&&opts.a&&opts.b&&opts.c&&opts.d&&answer)return{t:question,o:opts,a:answer};
+  return null;
+}
+
 function escapeHtml(s){
   if(!s)return'';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -585,14 +724,16 @@ function chgQ(delta){
   var n=Math.max(1,Math.min(99,cur+delta));
   game.questionCount=n;
   document.getElementById('qCountVal').textContent=n;
-  renderQuestionsForm();
 }
 
 function saveQuestions(){
   var perRound=parseInt(document.getElementById('qCountVal').textContent)||3;
+  var totalQ=window.serverQuestions.length;
   var qs=[];
-  for(var i=1;i<=perRound;i++){
-    var t=document.getElementById('qt'+i).value.trim();
+  for(var i=1;i<=totalQ;i++){
+    var el=document.getElementById('qt'+i);
+    if(!el)continue;
+    var t=el.value.trim();
     var a=document.getElementById('qans'+i).value;
     if(!t){showToast('请输入第'+i+'题题目');return;}
     if(!a){showToast('请选择第'+i+'题正确答案');return;}
@@ -615,7 +756,7 @@ function saveQuestions(){
   .then(function(r){return r.json();})
   .then(function(d){
     if(d.success){
-      showToast('✅ 已保存！每轮 '+d.questionsPerRound+' 题');
+      showToast('✅ 已保存！题库 '+qs.length+' 题，每轮 '+d.questionsPerRound+' 题');
       window.serverQuestions=qs;
       game.questionCount=d.questionsPerRound;
     }else showToast('❌ '+d.error);
