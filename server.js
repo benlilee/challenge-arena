@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/tmp';
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin888';
+const RESET_DAY = 2; // 每周二清空排行榜（0=周日，1=周一，2=周二...）
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -22,10 +23,14 @@ const defaultData = {
         { t: '一年有几个季节?', o: { a: '2', b: '3', c: '4', d: '5' }, a: 'c' }
     ],
     records: [],
-    hallOfFame: [],      // 历届擂主名人堂
-    leaderboard: [],     // 挑战者积分排行榜
+    hallOfFame: [],
+    leaderboard: [],
     challenged: false,
-    questionsPerRound: 3
+    questionsPerRound: 3,
+    questionBankSize: 50,   // 题库总题数（随机抽题用）
+    // ===== 新增：限访客 + 每周清空 =====
+    visitorLog: {},         // { ip: { count: N, weekStart: timestamp } }
+    lastResetDate: null     // 上次清空日期（YYYY-MM-DD）
 };
 
 function readData() {
@@ -35,6 +40,8 @@ function readData() {
             if (!d.hallOfFame) d.hallOfFame = [];
             if (!d.leaderboard) d.leaderboard = [];
             if (!d.champion.since) d.champion.since = null;
+            if (!d.visitorLog) d.visitorLog = {};
+            if (!d.lastResetDate) d.lastResetDate = null;
             return d;
         }
     } catch (e) {}
@@ -48,6 +55,41 @@ function saveData(data) {
     } catch (e) { console.error('Save error:', e); }
 }
 
+// ===== 每周固定日期自动清空排行榜 =====
+function checkWeeklyReset(data) {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const dayOfWeek = now.getDay(); // 0=周日,2=周二...
+
+    // 每次服务启动时检查
+    if (data.lastResetDate !== todayStr && dayOfWeek === RESET_DAY) {
+        console.log('📅 每周清空日（周' + (RESET_DAY + 1) + '），清空排行榜...');
+        data.leaderboard = []; // 只清空排行榜，保留挑战记录
+        data.lastResetDate = todayStr;
+        saveData(data);
+        console.log('✅ 排行榜已清空');
+    }
+}
+
+// ===== 限访客：一周内不超过3次 =====
+function checkVisitorLimit(data, ip) {
+    const now = Date.now();
+    // 周起始（周一 00:00）
+    const weekStart = now - ((now / 86400000 | 0) % 7) * 86400000 - (new Date().getHours() * 3600 + new Date().getMinutes() * 60 + new Date().getSeconds()) * 1000;
+
+    if (!data.visitorLog[ip] || data.visitorLog[ip].weekStart < weekStart) {
+        // 新的一周，重置计数
+        data.visitorLog[ip] = { count: 0, weekStart: weekStart };
+    }
+
+    if (data.visitorLog[ip].count >= 3) {
+        return false; // 已被限制
+    }
+
+    data.visitorLog[ip].count++;
+    return true; // 可以访问
+}
+
 // 更新排行榜
 function updateLeaderboard(data, challenger, success, correct, total, timeCost) {
     let entry = data.leaderboard.find(e => e.name === challenger);
@@ -57,14 +99,11 @@ function updateLeaderboard(data, challenger, success, correct, total, timeCost) 
     }
     entry.attempts++;
     entry.bestCorrect = Math.max(entry.bestCorrect, correct);
-
-    // 记录最近两次答题时间
     if (timeCost && timeCost > 0) {
         if (!entry.lastTimes) entry.lastTimes = [];
         entry.lastTimes.unshift({ time: timeCost, date: new Date().toLocaleDateString('zh-CN'), success });
         if (entry.lastTimes.length > 2) entry.lastTimes = entry.lastTimes.slice(0, 2);
     }
-
     if (success) {
         entry.wins++;
         entry.score += 100;
@@ -91,7 +130,6 @@ function addToHallOfFame(data, champion) {
             lastReign: new Date().toLocaleDateString('zh-CN')
         });
     }
-    // 按守擂次数排序
     data.hallOfFame.sort((a, b) => b.totalDef - a.totalDef);
 }
 
@@ -100,7 +138,7 @@ const adminTokens = new Set();
 function generateToken() {
     const token = crypto.randomBytes(32).toString('hex');
     adminTokens.add(token);
-    setTimeout(() => adminTokens.delete(token), 24 * 60 * 60 * 1000); // 24小时过期
+    setTimeout(() => adminTokens.delete(token), 24 * 60 * 60 * 1000);
     return token;
 }
 function verifyToken(req) {
@@ -108,32 +146,64 @@ function verifyToken(req) {
     return adminTokens.has(token);
 }
 
+// 获取客户端 IP（兼容代理）
+function getClientIp(req) {
+    return req.headers['x-forwarded-for']?.split(',')[0].trim()
+        || req.headers['x-real-ip']
+        || req.connection?.remoteAddress
+        || req.socket?.remoteAddress
+        || '';
+}
+
+// Fisher-Yates 打乱数组
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
 // ===== API =====
 
 app.get('/api/game', (req, res) => {
     const data = readData();
     const perRound = data.questionsPerRound || 3;
+
+    // 从题库随机抽题（每人题目顺序不同）
+    const shuffled = shuffle(data.questions);
+    const selected = shuffled.slice(0, Math.min(perRound, shuffled.length));
+
     res.json({
         champion: data.champion,
-        questions: data.questions.slice(0, perRound),
+        questions: selected,
         questionCount: perRound,
         totalChallenges: data.records.length
     });
 });
 
 app.get('/api/leaderboard', (req, res) => {
-    const data = readData();
-    res.json(data.leaderboard.slice(0, 20));
+    res.json(readData().leaderboard.slice(0, 20));
 });
 
 app.get('/api/hall-of-fame', (req, res) => {
-    const data = readData();
-    res.json(data.hallOfFame);
+    res.json(readData().hallOfFame);
 });
 
 app.post('/api/challenge', (req, res) => {
     const { challenger, success, correct, timeCost } = req.body;
     const data = readData();
+
+    // 限访客检查
+    const ip = getClientIp(req);
+    if (!checkVisitorLimit(data, ip)) {
+        return res.status(403).json({
+            success: false,
+            message: '⛔ 本周访问次数已达上限（3次），请下周再来！'
+        });
+    }
+
     const isFirst = !data.challenged;
     data.challenged = true;
 
@@ -150,7 +220,6 @@ app.post('/api/challenge', (req, res) => {
 
     if (success && isFirst) {
         addToHallOfFame(data, data.champion);
-        const oldChampion = data.champion.name;
         data.champion = { name: challenger, def: 0, since: new Date().toLocaleDateString('zh-CN') };
         data.challenged = false;
         saveData(data);
@@ -183,7 +252,6 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-// 管理员接口（需要token）
 app.get('/api/admin/data', (req, res) => {
     if (!verifyToken(req)) return res.status(401).json({ error: '未授权' });
     res.json(readData());
@@ -214,11 +282,27 @@ app.post('/api/admin/leaderboard/clear', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/admin/password', (req, res) => {
+app.post('/api/admin/hall-of-fame/clear', (req, res) => {
     if (!verifyToken(req)) return res.status(401).json({ error: '未授权' });
-    // 密码修改需要重启服务并设置环境变量，这里只提示
-    res.json({ success: false, message: '请在Railway环境变量中修改 ADMIN_PASSWORD' });
+    const data = readData();
+    data.hallOfFame = [];
+    saveData(data);
+    res.json({ success: true });
 });
+
+// 手动清空记录（不受周限制，管理员用）
+app.post('/api/admin/records/clear', (req, res) => {
+    if (!verifyToken(req)) return res.status(401).json({ error: '未授权' });
+    const data = readData();
+    data.records = [];
+    saveData(data);
+    res.json({ success: true });
+});
+
+// ===== 启动 =====
+const data = readData();
+checkWeeklyReset(data); // 启动时检查每周清空
+saveData(data); // 确保新字段写入磁盘
 
 app.get('*', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
@@ -227,4 +311,5 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
     console.log('Server running on port ' + PORT);
     console.log('Admin password: ' + ADMIN_PASSWORD);
+    console.log('Reset day: 每周周' + (RESET_DAY + 1) + '自动清空记录');
 });

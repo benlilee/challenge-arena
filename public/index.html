@@ -24,18 +24,26 @@ body{font-family:Arial,sans-serif;background:#0a0a15;color:#fff;min-height:100vh
 .question.active{display:block}
 .progress{height:8px;background:#333;border-radius:4px;margin-bottom:20px;overflow:hidden}
 .progress-bar{height:100%;background:linear-gradient(90deg,#00d4ff,#00ff88);transition:width .5s}
-.option,.option:hover,.option:active,.option:focus,.option:visited{
-  padding:15px;background:#0a0a15;border:2px solid #333!important;
+.option{
+  padding:15px;background:#0a0a15;border:2px solid #333;
   border-radius:10px;margin:10px 0;cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   -webkit-touch-callout:none;
   -webkit-user-select:none;user-select:none;
   touch-action:manipulation;
-  outline:none!important;box-shadow:none!important;
+  outline:none;box-shadow:none;
+  transition:none;
 }
-.option.selected{border-color:#00d4ff!important;background:rgba(0,212,255,0.2)}
-.option.correct{border-color:#00ff88!important;background:rgba(0,255,136,0.2)}
-.option.wrong{border-color:#ff4444!important;background:rgba(255,68,68,0.2)}
+.option:hover,.option:active,.option:focus{
+  border-color:#555;
+  background:#0d0d1a;
+}
+.option .opt-text{flex:1}
+.option .opt-icon{font-size:1.1rem;margin-left:8px;font-weight:bold;opacity:0;transition:opacity .2s}
+.option.wrong{border-color:#ff4444;background:rgba(255,68,68,0.1)}
+.option.wrong .opt-icon{opacity:1;color:#ff4444}
+.option.correct{border-color:#00ff88;background:rgba(0,255,136,0.1)}
+.option.correct .opt-icon{opacity:1;color:#00ff88}
 .modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);justify-content:center;align-items:center;z-index:1000}
 .modal.active{display:flex}
 .modal-content{background:#1a1a2e;border-radius:20px;padding:40px;text-align:center;border:2px solid;max-width:90%}
@@ -88,6 +96,12 @@ th{color:#00d4ff}
 .login-box h2{color:#00d4ff;margin-bottom:30px}
 .login-box input{width:100%;padding:15px;background:#0a0a15;border:1px solid #333;border-radius:10px;color:#fff;margin-bottom:15px;font-size:1.1rem}
 .login-box .btn{margin-top:20px}
+.limit-msg{
+  display:none;background:rgba(255,68,68,0.08);border:1px solid #ff4444;
+  border-radius:12px;padding:20px;margin:15px 0;text-align:center;color:#ff6666;font-size:0.95rem;
+}
+.limit-msg.active{display:block}
+.limit-msg .emoji{font-size:2rem;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -96,6 +110,12 @@ th{color:#00d4ff}
 <h2>👑 当前擂主</h2>
 <div class="name" id="championName">加载中...</div>
 <div class="stats">已连续守住 <span id="defenseCount">0</span> 次 | 总挑战 <span id="totalCount">0</span> 次</div>
+</div>
+
+<div class="limit-msg" id="limitMsg">
+<div class="emoji">⛔</div>
+<div id="limitMsgText">本周访问次数已达上限（3次）</div>
+<div style="font-size:0.8rem;margin-top:6px;color:#ff8888">请下周再来挑战！</div>
 </div>
 
 <div class="box" id="startBox">
@@ -148,9 +168,11 @@ th{color:#00d4ff}
 <div class="tab" onclick="switchTab('questions')">出题</div>
 <div class="tab" onclick="switchTab('records')">记录</div>
 </div>
-<div style="padding:12px 15px;margin:10px 0;background:rgba(255,68,68,0.08);border:1px dashed #ff4444;border-radius:10px">
-<button class="btn btn-danger" onclick="clearLeaderboard()">🗑️ 清除排行榜记录</button>
-<span style="font-size:0.75rem;color:#666;margin-left:8px;vertical-align:middle">此操作不可恢复</span>
+<div style="padding:12px 15px;margin:10px 0;background:rgba(255,68,68,0.08);border:1px dashed #ff4444;border-radius:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<button class="btn btn-danger" onclick="clearLeaderboard()">🗑️ 清除排行榜</button>
+<button class="btn btn-danger" onclick="clearRecords()">🗑️ 清空挑战记录</button>
+<button class="btn btn-danger" onclick="clearHallOfFame()">🗑️ 清除名人堂</button>
+<span style="font-size:0.75rem;color:#666">操作不可恢复</span>
 </div>
 
 <div class="admin-section active" id="setupSection">
@@ -160,7 +182,13 @@ th{color:#00d4ff}
 </div>
 
 <div class="admin-section" id="questionsSection">
-<h3>出题 (3题)</h3>
+<h3>出题 (随机抽题)</h3>
+<div style="margin-bottom:15px;padding:15px;background:#0a0a15;border-radius:10px;border:1px solid #333;font-size:0.85rem;color:#888;line-height:1.8">
+  📌 <b>随机抽题说明</b><br>
+  · 系统会从题库中随机抽取指定数量的题目<br>
+  · 每人每次挑战的题目顺序可能不同<br>
+  · 管理员可管理完整题库（建议 50 道题）
+</div>
 <div id="questionsForm"></div>
 <button class="btn" onclick="saveQuestions()">保存题目</button>
 </div>
@@ -188,6 +216,7 @@ var API = '';
 var adminToken = null;
 var game={name:'',q:0,ans:[],answers:[],questionCount:3,startTime:0};
 
+// 加载游戏数据
 function loadGame(){
   fetch(API+'/api/game')
     .then(r=>r.json())
@@ -203,15 +232,18 @@ function loadGame(){
     .catch(e=>document.getElementById('championName').textContent='连接失败');
 }
 
+// 开始挑战
 function startGame(){
   var n=document.getElementById('playerName').value.trim();
   if(!n){showToast('请输入名字');return;}
   game={name:n,q:0,ans:[],answers:[],questionCount:game.questionCount||3,startTime:Date.now()};
   document.getElementById('startBox').style.display='none';
   document.getElementById('questionBox').classList.add('active');
+  document.getElementById('limitMsg').classList.remove('active');
   showQuestion();
 }
 
+// 显示题目
 function showQuestion(){
   var q=window.serverQuestions[game.q];
   document.getElementById('qNum').textContent=game.q+1;
@@ -224,45 +256,53 @@ function showQuestion(){
     var k=letters[i];
     var op=document.createElement('div');
     op.className='option';
-    op.textContent=k.toUpperCase()+'. '+q.o[k];
-    op.onclick=(function(key){return function(){selectAns(key);}})(k);
+    op.setAttribute('data-key', k);
+    op.innerHTML='<span class="opt-text">'+k.toUpperCase()+'. '+q.o[k]+'</span><span class="opt-icon"></span>';
+    op.onclick=(function(key){return function(){selectAns(key);};})(k);
     box.appendChild(op);
   }
 }
 
+// 答题
 function selectAns(a){
   var q=window.serverQuestions[game.q];
-  var opts=document.querySelectorAll('.option');
-  var isCorrect=a===q.a;
+  var isCorrect=(a===q.a);
   game.ans.push(isCorrect);
-  game.answers.push({q:q.t,selected:a,correct:a===q.a});
-  
-  for(var i=0;i<opts.length;i++){
-    var op=opts[i];
-    var k=op.textContent.charAt(0).toLowerCase();
+  game.answers.push({q:q.t,selected:a,correct:isCorrect});
+
+  // 禁用所有选项点击 + 显示对错
+  var opts=document.querySelectorAll('.option');
+  opts.forEach(function(op){
     op.onclick=null;
-    if(k===q.a){op.classList.add('correct');}
-    else if(k===a){op.classList.add('wrong');}
-  }
-  
+    var k=op.getAttribute('data-key');
+    if(k===q.a){
+      op.classList.add('correct');
+      op.querySelector('.opt-icon').textContent='✓';
+    }else if(k===a&&!isCorrect){
+      op.classList.add('wrong');
+      op.querySelector('.opt-icon').textContent='✗';
+    }
+  });
+
   setTimeout(function(){
-    // 替换整个容器，旧DOM彻底消失，防止蓝色残留
+    // 替换整个容器，防止移动端残留
     var oldBox=document.getElementById('optionsBox');
     var newBox=document.createElement('div');
     newBox.id='optionsBox';
     oldBox.parentNode.replaceChild(newBox,oldBox);
-    
+
     game.q++;
     if(game.q>=game.questionCount){endGame();}else{showQuestion();}
-  },1000);
+  },1200);
 }
 
+// 结束挑战
 function endGame(){
   var all=true;
   for(var i=0;i<game.ans.length;i++){if(!game.ans[i]){all=false;break;}}
-  var ok=game.ans.filter(v=>v).length;
-  var timeCost=Math.round((Date.now()-game.startTime)/1000); // 秒
-  
+  var ok=game.ans.filter(function(v){return v;}).length;
+  var timeCost=Math.round((Date.now()-game.startTime)/1000);
+
   fetch(API+'/api/challenge',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -275,18 +315,24 @@ function endGame(){
       timestamp:new Date().toISOString()
     })
   })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.isNewChampion){
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.success||d.message&&d.message.indexOf('新擂主')>-1){
       showResult(true,'🏆 挑战成功!','你击败了 '+d.champion.name+'，成为新擂主!');
-    }else if(d.success){
+    }else if(d.success===false&&d.message&&d.message.indexOf('上限')>-1){
+      // 访问受限
+      document.getElementById('limitMsg').classList.add('active');
+      document.getElementById('limitMsgText').textContent=d.message;
+      document.getElementById('questionBox').classList.remove('active');
+      document.getElementById('startBox').style.display='block';
+    }else if(d.message&&d.message.indexOf('答对了')>-1){
       showResult(true,'🎉 挑战成功!',d.message);
     }else{
       showResult(false,'💀 挑战失败',d.message);
     }
     loadGame();
   })
-  .catch(e=>showToast('提交失败'));
+  .catch(function(e){showToast('提交失败');});
 }
 
 function showResult(success,ti,msg){
@@ -316,8 +362,8 @@ function showLeaderboard(e){
 
 function loadLeaderboard(){
   fetch(API+'/api/leaderboard')
-    .then(r=>r.json())
-    .then(data=>{
+    .then(function(r){return r.json();})
+    .then(function(data){
       var html='';
       for(var i=0;i<data.length;i++){
         var item=data[i];
@@ -326,12 +372,11 @@ function loadLeaderboard(){
         else if(i===1)rankClass='top2';
         else if(i===2)rankClass='top3';
 
-        // 最近两次答题时间
         var timesHtml='';
-        if(item.lastTimes && item.lastTimes.length>0){
-          timesHtml='<span class="ok">🏆</span> '+item.lastTimes[0].date+' 用时 <span class="ok">'+item.lastTimes[0].time+'秒</span>';
+        if(item.lastTimes&&item.lastTimes.length>0){
+          timesHtml='<span class="ok">🏆</span> '+item.lastTimes[0].date+' <span class="ok">'+item.lastTimes[0].time+'秒</span>';
           if(item.lastTimes.length>1){
-            timesHtml+=' &nbsp; <span class="no">❌</span> '+item.lastTimes[1].date+' 用时 <span class="no">'+item.lastTimes[1].time+'秒</span>';
+            timesHtml+=' &nbsp; <span class="no">❌</span> '+item.lastTimes[1].date+' <span class="no">'+item.lastTimes[1].time+'秒</span>';
           }
         }
 
@@ -346,7 +391,7 @@ function loadLeaderboard(){
         html+='<span>📊 '+item.attempts+'场</span>';
         html+='<span>📈 '+(item.attempts>0?Math.round(item.wins/item.attempts*100):0)+'%胜率</span>';
         html+='</div>';
-        if(timesHtml) html+='<div class="lb-times">'+timesHtml.replace(/style="[^"]*"/g,'')+'</div>';
+        if(timesHtml) html+='<div class="lb-times">'+timesHtml+'</div>';
         html+='</div>';
       }
       if(data.length===0)html='<div class="error">暂无数据</div>';
@@ -364,8 +409,8 @@ function showHallOfFame(e){
 
 function loadHallOfFame(){
   fetch(API+'/api/hall-of-fame')
-    .then(r=>r.json())
-    .then(data=>{
+    .then(function(r){return r.json();})
+    .then(function(data){
       var html='';
       for(var i=0;i<data.length;i++){
         var item=data[i];
@@ -395,14 +440,13 @@ function showAdmin(e){
 function adminLogin(){
   var pwd=document.getElementById('adminPassword').value;
   if(!pwd){showToast('请输入密码');return;}
-  
   fetch(API+'/api/admin/login',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({password:pwd})
   })
-  .then(r=>r.json())
-  .then(d=>{
+  .then(function(r){return r.json();})
+  .then(function(d){
     if(d.success){
       adminToken=d.token;
       document.getElementById('loginBox').style.display='none';
@@ -413,11 +457,11 @@ function adminLogin(){
       showToast('❌ 密码错误');
     }
   })
-  .catch(e=>showToast('登录失败'));
+  .catch(function(){showToast('登录失败');});
 }
 
 function showMain(e){
-  e.preventDefault();
+  if(e)e.preventDefault();
   document.getElementById('adminPage').classList.remove('active');
   document.getElementById('leaderboardPage').classList.remove('active');
   document.getElementById('hallOfFamePage').classList.remove('active');
@@ -431,10 +475,41 @@ function clearLeaderboard(){
   fetch(API+'/api/admin/leaderboard/clear',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-admin-token':adminToken}
-  }).then(r=>r.json()).then(d=>{
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
     if(d.success)showToast('排行榜已清空');
     else showToast(d.error||'操作失败');
-  }).catch(()=>showToast('网络错误'));
+  })
+  .catch(function(){showToast('网络错误');});
+}
+
+function clearHallOfFame(){
+    if(!confirm('确定要清除所有名人堂记录吗？此操作不可恢复！'))return;
+    fetch(API+'/api/admin/hall-of-fame/clear',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-admin-token':adminToken}
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+        if(d.success)showToast('🏆 名人堂已清除');
+        else showToast(d.error||'操作失败');
+    })
+    .catch(function(){showToast('网络错误');});
+}
+
+function clearRecords(){
+  if(!confirm('确定要清空所有挑战记录吗？此操作不可恢复！'))return;
+  fetch(API+'/api/admin/records/clear',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-admin-token':adminToken}
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.success){showToast('记录已清空');loadRecords();}
+    else showToast(d.error||'操作失败');
+  })
+  .catch(function(){showToast('网络错误');});
 }
 
 function switchTab(t){
@@ -457,57 +532,52 @@ function saveChampion(){
     headers:{'Content-Type':'application/json','x-admin-token':adminToken},
     body:JSON.stringify({name:n})
   })
-  .then(r=>r.json())
-  .then(d=>{
+  .then(function(r){return r.json();})
+  .then(function(d){
     if(d.success){showToast('✅ 已保存');loadGame();}
     else showToast('❌ '+d.error);
   })
-  .catch(e=>showToast('保存失败'));
+  .catch(function(){showToast('保存失败');});
 }
 
 function renderQuestionsForm(){
   var perRound=game.questionCount||3;
+  var qs=window.serverQuestions||[];
   var html='<div style="margin-bottom:15px;padding:15px;background:#0a0a15;border-radius:10px;border:1px solid #333;">';
-  html+='<div style="margin-bottom:10px;color:#ffd700;font-weight:bold">⚙️ 出题设置</div>';
+  html+='<div style="margin-bottom:10px;color:#ffd700;font-weight:bold">⚙️ 题库管理（建议 50 道题）</div>';
   html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">';
-  html+='<label style="color:#888">每轮题目数量:</label>';
-  html+='<div id="qCounter" style="display:flex;align-items:center;gap:0">';
+  html+='<label style="color:#888">每轮抽取:</label>';
+  html+='<div style="display:flex;align-items:center;gap:0">';
   html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:5px 0 0 5px;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(0)">−</button>';
   html+='<span id="qCountVal" style="width:44px;height:36px;line-height:36px;text-align:center;background:#1a1a2e;border-top:1px solid #00d4ff;border-bottom:1px solid #00d4ff;color:#00d4ff;font-size:1.1rem;font-weight:bold">'+perRound+'</span>';
   html+='<button style="width:36px;height:36px;background:#1a1a2e;border:1px solid #00d4ff;border-radius:0 5px 5px 0;color:#00d4ff;font-size:1.2rem;font-weight:bold;cursor:pointer" onclick="chgQ(1)">+</button>';
   html+='</div>';
-  html+='<span style="color:#666">道题</span>';
+  html+='<span style="color:#666">道题（从题库随机抽取）</span>';
   html+='</div>';
   html+='</div>';
-  
+
   html+='<div id="questionsFields">';
   for(var i=1;i<=perRound;i++){
+    var q=qs[i-1]||{};
     html+='<div style="background:#12121a;padding:15px;margin:10px 0;border-radius:10px;border:1px solid #333;">';
     html+='<h4 style="color:#00d4ff;margin-bottom:10px">第 '+i+' 题</h4>';
-    html+='<textarea id="qt'+i+'" placeholder="请输入题目内容..." style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;min-height:50px;margin-bottom:10px"></textarea>';
+    html+='<textarea id="qt'+i+'" placeholder="请输入题目内容..." style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;min-height:50px;margin-bottom:10px">'+escapeHtml(q.t||'')+'</textarea>';
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-    html+='<input type="text" id="qa'+i+'" placeholder="A选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
-    html+='<input type="text" id="qb'+i+'" placeholder="B选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
-    html+='<input type="text" id="qc'+i+'" placeholder="C选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
-    html+='<input type="text" id="qd'+i+'" placeholder="D选项" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qa'+i+'" placeholder="A选项" value="'+escapeHtml(q.o?q.o.a:'')+'" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qb'+i+'" placeholder="B选项" value="'+escapeHtml(q.o?q.o.b:'')+'" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qc'+i+'" placeholder="C选项" value="'+escapeHtml(q.o?q.o.c:'')+'" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
+    html+='<input type="text" id="qd'+i+'" placeholder="D选项" value="'+escapeHtml(q.o?q.o.d:'')+'" style="padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff">';
     html+='</div>';
-    html+='<select id="qans'+i+'" style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;margin-top:10px"><option value="">▼ 选择正确答案</option><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select>';
+    html+='<select id="qans'+i+'" style="width:100%;padding:10px;background:#0a0a15;border:1px solid #333;border-radius:5px;color:#fff;margin-top:10px"><option value="">▼ 选择正确答案</option><option value="a" '+(q.a==='a'?'selected':'')+'>A</option><option value="b" '+(q.a==='b'?'selected':'')+'>B</option><option value="c" '+(q.a==='c'?'selected':'')+'>C</option><option value="d" '+(q.a==='d'?'selected':'')+'>D</option></select>';
     html+='</div>';
   }
   html+='</div>';
-  
   document.getElementById('questionsForm').innerHTML=html;
-  
-  var qs=window.serverQuestions||[];
-  for(var i=0;i<qs.length&&i<perRound;i++){
-    var q=qs[i];
-    document.getElementById('qt'+(i+1)).value=q.t||'';
-    document.getElementById('qa'+(i+1)).value=q.o?q.o.a:'';
-    document.getElementById('qb'+(i+1)).value=q.o?q.o.b:'';
-    document.getElementById('qc'+(i+1)).value=q.o?q.o.c:'';
-    document.getElementById('qd'+(i+1)).value=q.o?q.o.d:'';
-    document.getElementById('qans'+(i+1)).value=q.a||'';
-  }
+}
+
+function escapeHtml(s){
+  if(!s)return'';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function chgQ(delta){
@@ -515,12 +585,6 @@ function chgQ(delta){
   var n=Math.max(1,Math.min(99,cur+delta));
   game.questionCount=n;
   document.getElementById('qCountVal').textContent=n;
-  renderQuestionsForm();
-}
-
-function updateQuestionFields(){
-  var n=parseInt(document.getElementById('qCountVal').textContent)||3;
-  game.questionCount=n;
   renderQuestionsForm();
 }
 
@@ -532,46 +596,55 @@ function saveQuestions(){
     var a=document.getElementById('qans'+i).value;
     if(!t){showToast('请输入第'+i+'题题目');return;}
     if(!a){showToast('请选择第'+i+'题正确答案');return;}
-    qs.push({t:t,o:{a:document.getElementById('qa'+i).value.trim(),b:document.getElementById('qb'+i).value.trim(),c:document.getElementById('qc'+i).value.trim(),d:document.getElementById('qd'+i).value.trim()},a:a});
+    qs.push({
+      t:t,
+      o:{
+        a:document.getElementById('qa'+i).value.trim(),
+        b:document.getElementById('qb'+i).value.trim(),
+        c:document.getElementById('qc'+i).value.trim(),
+        d:document.getElementById('qd'+i).value.trim()
+      },
+      a:a
+    });
   }
   fetch(API+'/api/admin/questions',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-admin-token':adminToken},
     body:JSON.stringify({questions:qs,questionsPerRound:perRound})
   })
-  .then(r=>r.json())
-  .then(d=>{
+  .then(function(r){return r.json();})
+  .then(function(d){
     if(d.success){
       showToast('✅ 已保存！每轮 '+d.questionsPerRound+' 题');
       window.serverQuestions=qs;
       game.questionCount=d.questionsPerRound;
     }else showToast('❌ '+d.error);
   })
-  .catch(e=>showToast('❌ 保存失败'));
+  .catch(function(){showToast('❌ 保存失败');});
 }
 
 function loadRecords(){
   fetch(API+'/api/records')
-    .then(r=>r.json())
-    .then(recs=>{
+    .then(function(r){return r.json();})
+    .then(function(recs){
       var html='<table><tr><th>挑战者</th><th>擂主</th><th>结果</th><th>时间</th></tr>';
       for(var i=0;i<recs.length;i++){
         var r=recs[i];
         var s=r.success?'<span style="color:#00ff88">成功</span>':'<span style="color:#ff4444">失败</span>';
-        html+='<tr><td>'+r.challenger+'</td><td>'+r.champion+'</td><td>'+s+'</td><td>'+r.submitTime+'</td></tr>';
+        html+='<tr><td>'+escapeHtml(r.challenger)+'</td><td>'+escapeHtml(r.champion)+'</td><td>'+s+'</td><td>'+escapeHtml(r.submitTime||'')+'</td></tr>';
       }
       if(recs.length===0)html+='<tr><td colspan="4" style="text-align:center;color:#888">暂无记录</td></tr>';
       html+='</table>';
       document.getElementById('recordsList').innerHTML=html;
     })
-    .catch(e=>document.getElementById('recordsList').innerHTML='<div class="error">加载失败</div>');
+    .catch(function(){document.getElementById('recordsList').innerHTML='<div class="error">加载失败</div>';});
 }
 
 function showToast(m){
   var t=document.getElementById('toast');
   t.textContent=m;
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
+  setTimeout(function(){t.classList.remove('show');},2000);
 }
 
 loadGame();
